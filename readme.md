@@ -2,6 +2,8 @@
 
 This repository will grow to contain various projects demonstrating skills in robotics, simulations, optimization techniques, and more.
 
+I use a python virtual environment and Docker containers.
+
 ## Current Sections
 
 ### Controls
@@ -26,4 +28,4 @@ Various techniques including quadratic programming will be used to solve unique 
 
 Having worked on various projects before I want to remake them to be configured using Docker to allow easy running on any device. Things like SLAM (Simultaneous Localization and Mapping), LiDAR, navigation, and more will be demonstrated.
 
-Other future projects will include exploration of packages like ardupilot for the task of autonomous navigation, as well as more simple programs of demonstrating my Controls projects using c++ instead of python. 
+Other future projects will include exploration of packages like ardupilot for the task of autonomous navigation, as well as more simple programs of demonstrating my Controls projects using c++ instead of python.
