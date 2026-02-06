@@ -8,14 +8,15 @@
 ## import libraries
 import numpy as np
 import matplotlib.pyplot as plt
-import blockbeamParam as P
+import blockbeamParam as P # This could easily be brought in here, but I keep it separate.
 
-## create classes
+## create classes 
+# These classes can be separated as well, one for each control method, or one for the plant and one for all control methods. 
 
 class blockbeamDynamics:
     def __init__(self,state0 = None, alpha=0.0):
         '''
-        Docstring for __init__
+        Initialize the blockbeam dynamic system. 
         
         :param alpha: Description
         '''
@@ -85,15 +86,13 @@ class blockbeamDynamics:
         self.state = self.state + self.Ts / 6 * (F1 + 2*F2 + 2*F3 + F4)
 
 class PD:
+
     def __init__(self):
         '''
-        Docstring for __init__
-        
-        :param self: Description
-        
-        This will initialize the controller PD values given using 
-        simple rise time analysis
-        Initially I just guess...
+        Initializes a PD controller. 
+
+        This will calculate proper PD values using simple
+        rise time analysis
         '''
 
         pass
@@ -111,12 +110,10 @@ class PD:
 class PID:
     def __init__(self):
         '''
-        Docstring for __init__
+        Initializes a PID controller
         
-        :param self: Description
-        
-        This will initialize the controller PID values given using 
-        simple rise time analysis
+        This will calculate proper PID values using simple 
+        rise time analysis
         '''
         
 
@@ -129,7 +126,7 @@ class PID:
         '''
         Docstring for update
         
-        :param self: Description
+
         :param state: Description
         :param ref: Description
         '''
@@ -140,7 +137,6 @@ class SMC:
         '''
         Docstring for __init__
         
-        :param self: Description
         '''
         pass
 
@@ -148,7 +144,6 @@ class SMC:
         '''
         Docstring for update
         
-        :param self: Description
         :param state: Description
         :param ref: Description
         '''
@@ -159,7 +154,6 @@ class MPC:
         '''
         Docstring for __init__
         
-        :param self: Description
         '''
         pass
 
@@ -167,7 +161,6 @@ class MPC:
         '''
         Docstring for update
         
-        :param self: Description
         :param state: Description
         :param ref: Description
         '''
@@ -175,6 +168,8 @@ class MPC:
 
 
 ## define functions
+
+
 # linearized equation + parameters:
 
 # A41 = P.g * (P.m1**2 *P.p_steady**2 + P.m1 * P.m2 * P.length**2 / 3) / (P.m1 * P.p_steady**2 + P.m2 * P.length**2 / 3)**2
@@ -214,9 +209,11 @@ plant = blockbeamDynamics(state0)
 # time_vals = np.arange(P.t_start,P.t_end,P.Ts)
 time_vals = np.arange(0,20,P.Ts)
 
-tauVals = np.array([tau0]*len(time_vals))
+# Only useful for steady state so I can validate my model 
+tauVals = np.array([tau0]*len(time_vals)) 
+
+
 stateVals = np.zeros((len(state0),len(time_vals)))
-ddot = np.zeros(np.shape(stateVals))
 
 # print(f"state0: {state0}")
 # print(f"length time, tauvals: {np.shape(time_vals), np.shape(tauVals)}")
@@ -224,25 +221,25 @@ ddot = np.zeros(np.shape(stateVals))
 
 for i, (t, u) in enumerate(zip(time_vals,tauVals)):
     y = plant.update(u)
-    # ddot[:,i] = plant.f(plant.state,u)
     stateVals[:,i] = plant.state
 
 fig = plt.figure()
+# Plot position and 
 ax1 = fig.add_subplot(1,3,1) # z, zdot
 ax1.plot(time_vals,stateVals[0,:],label='z')
 ax1.plot(time_vals,stateVals[2,:],label='zdot')
 ax1.legend()
+
 ax2 = fig.add_subplot(1,3,2) # z, zdot
 ax2.plot(time_vals,stateVals[1,:],label='theta')
 ax2.plot(time_vals,stateVals[3,:],label='thetaDot')
 ax2.legend()
+
 ax3 = fig.add_subplot(1,3,3) # z, zdot
 ax3.plot(time_vals,tauVals,label='Tau')
 ax3.legend()
 
 plt.show()
-
-
 
 ## First step: simulate with static input:
 
