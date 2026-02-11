@@ -43,13 +43,31 @@ stateVals = np.zeros((len(state0),len(time_vals)))
 y = plant.h()
 stateVals[:,0] = plant.state
 ref_sig = np.ones_like(tauVals) * 1.0
-ref_sig[int(n/3):] = ref_sig[0]*-1
+ref_fil = np.ones_like(tauVals) * 1.0
+
+# ref_sig[int(n/3):] = ref_sig[0]*-1
+
+ref_filtered = 0
+alpha_smooth = 0.05
 
 for i in range(len(time_vals)-1):
-    u = controller.update(y,ref_sig[i])
+    if i < n/3:
+        ref = 1
+    elif i < n/2:
+        ref = -1
+    else:
+        ref = 1
+    ref_filtered = (1-alpha_smooth)*ref_filtered + alpha_smooth * ref
+
+    u = controller.update(y,ref_filtered)
     tauVals[i] = u
     y = plant.update(u)
     stateVals[:,i+1] = plant.state
+    ref_sig[i] = ref
+    ref_fil[i] = ref_filtered
+
+
+
 tauVals[-1] = u
 # u = tauVals[i]
 if True: # to make this a collapsing section and optional plotting
@@ -59,11 +77,12 @@ if True: # to make this a collapsing section and optional plotting
     ax1.plot(time_vals,stateVals[0,:],label='z')
     ax1.plot(time_vals,stateVals[2,:],label='zdot')
     ax1.plot(time_vals,ref_sig,'g--', label= 'ref val')
+    ax1.plot(time_vals,ref_fil,'r--', label= 'ref filtered')
     ax1.legend()
 
     ax2 = fig.add_subplot(3,1,2) # z, zdot
-    ax2.plot(time_vals,stateVals[3,:]*180/np.pi,'-', label='thetaDot')
     ax2.plot(time_vals,stateVals[1,:]*180/np.pi,label='theta')
+    ax2.plot(time_vals,stateVals[3,:]*180/np.pi,'-', label='thetaDot')
     ax2.legend()
 
     ax3 = fig.add_subplot(3,1,3) # z, zdot
@@ -71,5 +90,4 @@ if True: # to make this a collapsing section and optional plotting
     ax3.legend()
 
     plt.show()
-
 

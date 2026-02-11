@@ -29,4 +29,4 @@ Ts =        0.01            # sample time for simulation
 t_plot =    Ts*10           # the plotting and animation is updated at this rate
 
 # saturation limits
-torque_Max = np.inf             # Max Torque, N*m
+torque_Max = 30             # Max Torque, N*m

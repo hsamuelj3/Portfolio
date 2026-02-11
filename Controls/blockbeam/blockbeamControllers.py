@@ -44,9 +44,9 @@ class PID:
         
         ## Inner Loop - PD control of theta - fast response
         # Tuning parameters
-        scale = 10.0             # Time scale separation
-        tr_th = 0.2         # Rise time for theta (inner loop) --> This must be FAST to use a simplified model
-        zeta_th = 0.8     # Damping ratio
+        scale = 6.0             # Time scale separation
+        tr_th = 0.3         # Rise time for theta (inner loop) --> This must be FAST to use a simplified model
+        zeta_th = 0.907     # Damping ratio
         wn_th = 2.2 / tr_th # Desired atural frequency of the theta loop
 
         # Compute inner loop gains - use 2nd order characteristic equation = 1 + Control * Plant
@@ -322,7 +322,6 @@ class slidingModeControl:
 
         return np.clip(u_theta,-BP.torque_Max,BP.torque_Max)
 
-
 def sat(s,phi):
     '''
     Saturation function used in SMC
@@ -333,7 +332,6 @@ def sat(s,phi):
     Saturates input based on where you are related to the sliding surface
     '''
     return np.clip(s/phi, -1.0, 1.0)
-
 
 
 class MPC:
