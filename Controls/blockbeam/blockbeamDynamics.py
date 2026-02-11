@@ -10,7 +10,7 @@ class blockbeamDynamics:
         
         :param alpha: Description
         '''
-        if state0.all() == None:    
+        if state0 is None:    
             self.state = np.array([
                 BP.z0,
                 BP.theta0,

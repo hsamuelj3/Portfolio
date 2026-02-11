@@ -7,88 +7,69 @@
 
 ## import libraries
 import numpy as np
+import control as cnt
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
 import blockbeamParam as BP # This could easily be brought in here, but I keep it separate.
-import blockbeamDynamics as bbDynamics
+import blockbeamDynamics as bbDynamics 
 import blockbeamControllers as bbControllers
+
 
 ## define functions
 
-
 # linearized equation + parameters:
 
-# A41 = P.g * (P.m1**2 *P.p_steady**2 + P.m1 * P.m2 * P.length**2 / 3) / (P.m1 * P.p_steady**2 + P.m2 * P.length**2 / 3)**2
-# A = np.array([[0.0, 0.0, 1.0, 0.0],
-#               [0.0, 0.0, 0.0, 1.0],
-#               [0.0, -P.g, 0.0, 0.0],
-#               [A41, 0.0, 0.0, 0.0]])
+A41 = BP.g * (BP.m1**2 *BP.p_steady**2 + BP.m1 * BP.m2 * BP.length**2 / 3) / (BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)**2
+A = np.array([[0.0, 0.0, 1.0, 0.0],
+              [0.0, 0.0, 0.0, 1.0],
+              [0.0, -BP.g, 0.0, 0.0],
+              [A41, 0.0, 0.0, 0.0]])
 
-# B = np.array([0,0,0,1/(P.m1 * P.p_steady**2 + P.m2 * P.length**2 / 3)])
+B = np.array([0,0,0,1/(BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)])
 
-# C = np.array([[1,0,0,0],
-#               [0,1,0,0]])
-
-# def stateSpace_f(state, A, B, C, tau):
-#     next_state = A@state + B@tau
-#     y = C @ next_state
-#     return y, next_state
-
-# def rk4_stateSpace(state,u,Ts):
-#         '''
-#         Integrate ODE using Runge-Kutta RK4 algorithm
-        
-#         :param u: input 
-#         '''
-#         F1 = stateSpace_f(state, A,B,C,u)
-#         F2 = stateSpace_f(state + Ts / 2 * F1, A,B,C, u)
-#         F3 = stateSpace_f(state + Ts / 2 * F2, A,B,C, u)
-#         F4 = stateSpace_f(state + Ts * F3, A,B,C, u)
-#         # Update actual state using RK4 result
-#         return state + Ts / 6 * (F1 + 2*F2 + 2*F3 + F4)
+C = np.array([[1,0,0,0],
+              [0,1,0,0]])
 
 state0 = np.array([BP.z0, BP.theta0, BP.zdot0, BP.thetadot0])
 
-tau0 = BP.g * (BP.m2 * BP.length / 2)
 plant = bbDynamics.blockbeamDynamics(state0)
-# controller = bbControllers.PD()
+controller = bbControllers.PID()
 
-# time_vals = np.arange(P.t_start,P.t_end,P.Ts)
 time_vals = np.arange(0,BP.t_end,BP.Ts)
-
-# Only useful for steady state so I can validate my model 
-tauVals = np.array([tau0]*len(time_vals)) 
-# tauVals = np.zeros_like(time_vals)
-
+tauVals = np.zeros_like(time_vals) 
+n = len(time_vals)
 stateVals = np.zeros((len(state0),len(time_vals)))
+y = plant.h()
+stateVals[:,0] = plant.state
+ref_sig = np.ones_like(tauVals) * 1.0
+ref_sig[int(n/3):] = ref_sig[0]*-1
 
-# print(f"state0: {state0}")
-# print(f"length time, tauvals: {np.shape(time_vals), np.shape(tauVals)}")
-# print(f"states shape: {np.shape(stateVals)}")
-
-for i in range(len(time_vals)):
-    # u = controller.update(np.array([0,0]),plant.state)
-    u = tauVals[i]
+for i in range(len(time_vals)-1):
+    u = controller.update(y,ref_sig[i])
+    tauVals[i] = u
     y = plant.update(u)
-    stateVals[:,i] = plant.state
-    # tauVals[i] = u
+    stateVals[:,i+1] = plant.state
+tauVals[-1] = u
+# u = tauVals[i]
+if True: # to make this a collapsing section and optional plotting
+    fig = plt.figure()
+    # Plot position and 
+    ax1 = fig.add_subplot(3,1,1) # z, zdot
+    ax1.plot(time_vals,stateVals[0,:],label='z')
+    ax1.plot(time_vals,stateVals[2,:],label='zdot')
+    ax1.plot(time_vals,ref_sig,'g--', label= 'ref val')
+    ax1.legend()
 
-fig = plt.figure()
-# Plot position and 
-ax1 = fig.add_subplot(1,3,1) # z, zdot
-ax1.plot(time_vals,stateVals[0,:],label='z')
-ax1.plot(time_vals,stateVals[2,:],label='zdot')
-ax1.legend()
+    ax2 = fig.add_subplot(3,1,2) # z, zdot
+    ax2.plot(time_vals,stateVals[3,:]*180/np.pi,'-', label='thetaDot')
+    ax2.plot(time_vals,stateVals[1,:]*180/np.pi,label='theta')
+    ax2.legend()
 
-ax2 = fig.add_subplot(1,3,2) # z, zdot
-ax2.plot(time_vals,stateVals[1,:],label='theta')
-ax2.plot(time_vals,stateVals[3,:],label='thetaDot')
-ax2.legend()
+    ax3 = fig.add_subplot(3,1,3) # z, zdot
+    ax3.plot(time_vals,tauVals,label='Tau')
+    ax3.legend()
 
-ax3 = fig.add_subplot(1,3,3) # z, zdot
-ax3.plot(time_vals,tauVals,label='Tau')
-ax3.legend()
+    plt.show()
 
-plt.show()
-
-## First step: simulate with static input:
 
