@@ -1271,3 +1271,8 @@ def testFunction(cities): # newOptimizationFunction is hopefully what this will 
 
 
 testFunction(popEastList_100)
+
+'''
+TODO: Clean up code, write clear documentation for each function and what it does. 
+TODO: Update so it also uses scipy minimize to find answers
+'''
