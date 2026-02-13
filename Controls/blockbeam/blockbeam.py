@@ -18,25 +18,14 @@ import blockbeamControllers as bbControllers
 
 ## define functions
 
-# linearized equation + parameters:
-
-A41 = BP.g * (BP.m1**2 *BP.p_steady**2 + BP.m1 * BP.m2 * BP.length**2 / 3) / (BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)**2
-A = np.array([[0.0, 0.0, 1.0, 0.0],
-              [0.0, 0.0, 0.0, 1.0],
-              [0.0, -BP.g, 0.0, 0.0],
-              [A41, 0.0, 0.0, 0.0]])
-
-B = np.array([0,0,0,1/(BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)])
-
-C = np.array([[1,0,0,0],
-              [0,1,0,0]])
-
 state0 = np.array([BP.z0, BP.theta0, BP.zdot0, BP.thetadot0])
 
 plant = bbDynamics.blockbeamDynamics(state0)
 controller = bbControllers.PID()
+controller2 = bbControllers.LQR()
 
-time_vals = np.arange(0,BP.t_end,BP.Ts)
+
+time_vals = np.arange(0,BP.t_end,BP.dt)
 tauVals = np.zeros_like(time_vals) 
 n = len(time_vals)
 stateVals = np.zeros((len(state0),len(time_vals)))
@@ -45,31 +34,27 @@ stateVals[:,0] = plant.state
 ref_sig = np.ones_like(tauVals) * 1.0
 ref_fil = np.ones_like(tauVals) * 1.0
 
-# ref_sig[int(n/3):] = ref_sig[0]*-1
-
 ref_filtered = 0
-alpha_smooth = 0.05
-
-for i in range(len(time_vals)-1):
-    if i < n/3:
+alpha_smooth = .01
+if True:
+    for i in range(len(time_vals)-1):
+        # if i < n/3:
+        #     ref = 1
+        # elif i < n/2:
+        #     ref = -1
+        # else:
+        #     ref = 1
         ref = 1
-    elif i < n/2:
-        ref = -1
-    else:
-        ref = 1
-    ref_filtered = (1-alpha_smooth)*ref_filtered + alpha_smooth * ref
+        ref_filtered = (1-alpha_smooth)*ref_filtered + alpha_smooth * ref
+        u = controller2.update(y,ref_filtered)
+        tauVals[i] = u
+        y = plant.update(u)
+        stateVals[:,i+1] = plant.state
+        ref_sig[i] = ref
+        ref_fil[i] = ref_filtered
 
-    u = controller.update(y,ref_filtered)
-    tauVals[i] = u
-    y = plant.update(u)
-    stateVals[:,i+1] = plant.state
-    ref_sig[i] = ref
-    ref_fil[i] = ref_filtered
+    tauVals[-1] = u
 
-
-
-tauVals[-1] = u
-# u = tauVals[i]
 if True: # to make this a collapsing section and optional plotting
     fig = plt.figure()
     # Plot position and 

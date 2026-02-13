@@ -1,5 +1,6 @@
 
-
+import scipy as sc
+from scipy.linalg import solve_continuous_are
 import numpy as np
 import blockbeamParam as BP
 
@@ -29,7 +30,7 @@ class PD:
         pass
 
 class PID:
-    def __init__(self):
+    def __init__(self, tr_th = None, tr_z = None, scale = None, zeta_th = None, zeta_z = None):
         '''
         Initializes a PID controller
         
@@ -46,7 +47,7 @@ class PID:
         # Tuning parameters
         scale = 6.0             # Time scale separation
         tr_th = 0.3         # Rise time for theta (inner loop) --> This must be FAST to use a simplified model
-        zeta_th = 0.907     # Damping ratio
+        zeta_th = 0.707     # Damping ratio
         wn_th = 2.2 / tr_th # Desired atural frequency of the theta loop
 
         # Compute inner loop gains - use 2nd order characteristic equation = 1 + Control * Plant
@@ -73,7 +74,7 @@ class PID:
         self.theta_dot = BP.thetadot0
         self.theta_prev = BP.theta0
 
-        self.Ts = BP.Ts
+        self.Ts = BP.dt
         self.sigma = 0.05 # cutoff frequency for dirty derivative
 
         self.m1 = BP.m1
@@ -82,7 +83,7 @@ class PID:
         self.length = BP.length
 
         # saturation limits
-        self.Tau_max = BP.torque_Max        # maximum torque (from parameters) 
+        self.Tau_max = BP.tau_max        # maximum torque (from parameters) 
         error_max = 1                       # maximum error allowed during calculations (maybe unused)
         self.theta_max = 30 * np.pi/180     # maximum theta ref command
         self.max_i_term = 10 * np.pi/180    # Maximum effect of the integral term... 
@@ -320,7 +321,7 @@ class slidingModeControl:
         # if abs(u_z) > BP.uLimit or abs(u_theta) > BP.uLimit:
         #     print(f"Warning: Saturation! Req: {u_z:.1f}, {u_theta:.1f}")
 
-        return np.clip(u_theta,-BP.torque_Max,BP.torque_Max)
+        return np.clip(u_theta,-BP.tau_max,BP.tau_max)
 
 def sat(s,phi):
     '''
@@ -333,6 +334,91 @@ def sat(s,phi):
     '''
     return np.clip(s/phi, -1.0, 1.0)
 
+class LQR:
+    def __init__(self):
+        '''
+        Docstring for update
+        '''
+        # linearized equation + parameters:
+
+        A41 = BP.g * (BP.m1**2 *BP.p_steady**2 + BP.m1 * BP.m2 * BP.length**2 / 3) \
+            / (BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)**2
+        self.A = np.array([[0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                    [0.0, -BP.g, 0.0, 0.0],
+                    [-A41, 0.0, 0.0, 0.0]])
+
+        self.B = np.array([[0],[0],[0],[1/(BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)]])
+
+        self.C = np.array([[1,0,0,0],
+                    [0,1,0,0]])
+        
+        self.A_aug = np.vstack([
+                    np.hstack([self.A, np.zeros((4, 1))]), 
+                    np.array([-1, 0, 0, 0, 0])      
+                ])
+        
+        self.B_aug = np.vstack([self.B,[0]])
+
+        Q_aug = np.diag([100.0, 1.0, 1.0, 1.0, 10.0]) # High penalty on Integral = Stiff tracking
+        R = np.array([[0.1]]) # Penalty on control effort
+
+        self.P = solve_continuous_are(self.A_aug,self.B_aug,Q_aug,R)
+        self.K_aug = (np.linalg.inv(R) @ self.B_aug.T @ self.P).flatten()
+
+        # Kalman filter (observer)
+        Vd = np.diag([0.1, 0.01, 0.01, 0.01]) 
+        Vn = np.diag([0.1, 0.1])
+        self.P_est = solve_continuous_are(self.A.T, self.C.T,Vd,Vn)
+        self.L = self.P_est @ self.C.T @ np.linalg.inv(Vn)
+
+        print(f"A_aug (shape): \n{np.shape(self.A_aug)}")
+        print(f"B_aug (shape): \n{np.shape(self.B_aug)}")
+        print(f"LQI Gains: {self.K_aug}")
+        print(f"Kalman Gains: {self.L}")
+
+        self.dt = BP.dt
+        self.x_hat = np.zeros((4, 1)) # Estimated state
+        self.integrator_state = 0.0   # Integral of error
+        self.u_prev = 0
+
+        self.tau_max = BP.tau_max
+
+    def update(self, state, ref):
+        '''
+        Docstring for update
+        
+        :param self: Description
+        :param state: Description
+        :param ref: Description
+        '''
+        # Prediction step (state space model)
+        x_pred = self.x_hat + (self.A @ self.x_hat + self.B * self.u_prev) * self.dt
+        
+        # Correction step
+        y_pred = self.C @ x_pred
+        residual = state[:2].reshape(-1,1) - y_pred
+        self.x_hat = x_pred + self.L @ residual
+
+        # LQI control
+        z_est = self.x_hat[0,0]
+        error = ref - z_est
+
+        # Anti-windup (optional)
+        if abs(self.u_prev) < self.tau_max or np.sign(error) != np.sign(self.u_prev):
+            self.integrator_state += error * self.dt
+            # TODO - Change to simpson's rule or another method using the previous 4 points (+current) 
+            # e.g. to give 4 equal partitions for more accurate numerical integration... 
+            # self.integrator_state = self.integrator_state - self.K_aug[-1] * self.integrator_state #- self.Kd_z * self.z_dot
+            # print(f"Used")
+
+        # Augmented state: 
+        x_aug_current = np.vstack([self.x_hat,[self.integrator_state]])
+
+        # control output: 
+        u = -np.dot(self.K_aug,x_aug_current).item()
+        self.u_prev = np.clip(u,-self.tau_max,self.tau_max)
+        return self.u_prev
 
 class MPC:
     def __init__(self):

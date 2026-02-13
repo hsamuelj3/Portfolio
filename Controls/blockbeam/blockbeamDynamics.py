@@ -25,8 +25,8 @@ class blockbeamDynamics:
         self.m2 = BP.m2
         self.ell = BP.length
         self.g = BP.g
-        self.Ts = BP.Ts
-        self.torque_limit = BP.torque_Max
+        self.dt = BP.dt
+        self.torque_limit = BP.tau_max
 
 
     def update(self,u):
@@ -69,8 +69,8 @@ class blockbeamDynamics:
         :param u: input 
         '''
         F1 = self.f(self.state, u)
-        F2 = self.f(self.state + self.Ts / 2 * F1, u)
-        F3 = self.f(self.state + self.Ts / 2 * F2, u)
-        F4 = self.f(self.state + self.Ts * F3, u)
+        F2 = self.f(self.state + self.dt / 2 * F1, u)
+        F3 = self.f(self.state + self.dt / 2 * F2, u)
+        F4 = self.f(self.state + self.dt * F3, u)
         # Update actual state using RK4 result
-        self.state = self.state + self.Ts / 6 * (F1 + 2*F2 + 2*F3 + F4)
+        self.state = self.state + self.dt / 6 * (F1 + 2*F2 + 2*F3 + F4)

@@ -24,9 +24,9 @@ tau_steady = (m2 * g * length/2 + m1 * g * p_steady)
 
 # Simulation Parameters
 t_start =   0               # Start time of simulation
-t_end =     30.             # End time of simulation
-Ts =        0.01            # sample time for simulation
-t_plot =    Ts*10           # the plotting and animation is updated at this rate
+t_end =     30.0            # End time of simulation
+dt =        0.01            # sample time for simulation
+t_plot =    dt*10           # the plotting and animation is updated at this rate
 
 # saturation limits
-torque_Max = 30             # Max Torque, N*m
+tau_max = 30                # Max Torque, N*m
