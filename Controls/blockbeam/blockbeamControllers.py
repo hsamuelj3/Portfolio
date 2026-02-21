@@ -5,30 +5,6 @@ import numpy as np
 import blockbeamParam as BP
 
 ## Controller classes
-class PD:
-
-    def __init__(self):
-        '''
-        Initializes a PD controller. 
-
-        This will calculate proper PD values using simple
-        rise time analysis
-        '''
-
-        pass
-
-    def update(self,state,ref):
-        '''
-        Docstring for update
-        
-        :param self: Description
-        :param state: Description
-        :param ref: Description
-        '''
-        # Calculate derivative (hold past state)
-
-        pass
-
 class PID:
     def __init__(self, tr_th = None, tr_z = None, scale = None, zeta_th = None, zeta_z = None):
         '''
@@ -45,7 +21,7 @@ class PID:
         
         ## Inner Loop - PD control of theta - fast response
         # Tuning parameters
-        scale = 6.0             # Time scale separation
+        scale = 10.0             # Time scale separation
         tr_th = 0.3         # Rise time for theta (inner loop) --> This must be FAST to use a simplified model
         zeta_th = 0.707     # Damping ratio
         wn_th = 2.2 / tr_th # Desired atural frequency of the theta loop
@@ -117,12 +93,6 @@ class PID:
         self.z_dot = (2.0*self.sigma - self.Ts) / (2.0*self.sigma + self.Ts) * self.z_dot \
             + (2.0 / (2.0*self.sigma + self.Ts)) * ((z - self.z_prev))
         
-        # If z_dot is small integrate z:
-        # This ensures it only happens when it's slowed down to cancel out steady state errors
-        # if np.abs(self.z_dot) < 0.05:
-        #     self.integrator_z += error_z*self.Ts
-        #     # self.integrator_z = self.integrator_z + self.Ki_z * self.integrator_z - self.Kd_z * self.z_dot
-        
         self.integrator_z += error_z*self.Ts
         ki_term = np.clip(self.Ki_z * self.integrator_z,-self.max_i_term,self.max_i_term)
         theta_r = self.Kp_z * error_z \
@@ -152,21 +122,35 @@ class PID:
         return np.clip(tau,-self.Tau_max,self.Tau_max)
 
 class SMC:
-    def __init__(self):
+    def __init__(self, A, B, C= None, K0 = None):
         '''
-        Docstring for __init__
-    
+        
+        :param A: System dynamics matrix A 
+        :param B: Input effects
+        :param C: Base gains for the sliding surface (optional input)
+        :param K0: Switching gain (optional input)
         '''
+        self.A = A
+        self.B = B
 
-        pass
+        self.C = C if C is not None else np.identity(len(A[0])) 
+
+        self.K0 = K0 if K0 is not None else  np.identity(len(A[0]))
+        self.refArray = np.zeros(len(A[0]))
 
     def update(self, state, ref):
         '''
         Docstring for update
         
         :param state: Description
-        :param ref: Description
+        :param ref: Only the reference for one of the states: x
         '''
+
+        self.refArray[0] = ref
+        error_array = state - self.refArray
+        s = self.C @ error_array
+
+        
         pass
 
 ## Very quick modification of another project's sliding mode control. Didn't work
@@ -335,6 +319,92 @@ def sat(s,phi):
     return np.clip(s/phi, -1.0, 1.0)
 
 class LQR:
+    def __init__(self, x0=np.zeros(4)):
+        A41 = BP.g * (BP.m1**2 *BP.p_steady**2 + BP.m1 * BP.m2 * BP.length**2 / 3) \
+            / (BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)**2
+        # linearized model used for state prediction xdot = Ax+Bu
+        self.A = np.array([[0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                    [0.0, -BP.g, 0.0, 0.0],
+                    [-A41*0, 0.0, 0.0, 0.0]])
+
+        self.B = np.array([[0],[0],[0],[1/(BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)]])
+
+        C = np.array([[1,0,0,0],
+                    [0,1,0,0]])
+        
+        # Used for LQR calculation
+        Q = np.diag([1.0,0.1,0.1,0.1]) # State cost matrix
+        R = np.array([[1]]) # Control cost matrix
+        P = solve_continuous_are(self.A,self.B,Q,R)
+        self.K_LQR = (np.linalg.inv(R) @ self.B.T @ P).flatten()
+
+        self.refArray = np.zeros(4) # to ease state - ref in the update function
+        
+        # Use for kalman filter: 
+        self.x = x0 # prediction state (initialized at x0)
+        self.P_k = np.eye(len(self.x))*0.1 # Covariance matrix
+        self.Q_k = np.diag([0.1, 0.01,0.1,0.01])*0.01 # Process noise matrix
+        self.R_k = np.diag([0.05, 0.02]) # Measurement covariance
+        self.H = C # measurement matrix
+        self.K_k = self.P_k @ self.H.T @ (self.H @ self.P_k @ self.H.T + self.R_k) # Initialize kalman gain
+        
+        self.predict(u=np.array([0]))
+        # print(f"After prediction: ")
+        # print(f"shape x: {np.shape(self.x)}")
+        # print(f"shape P_k: {np.shape(self.P_k)}")
+        # print(f"shape Q_k: {np.shape(self.Q_k)}")
+        # print(f"shape R_k: {np.shape(self.R_k)}")
+        # print(f"shape H: {np.shape(self.H)}")
+        # print(f"shape K: {np.shape(self.K_k)}")
+        # print()
+
+
+    def jacobian(self, u):
+        # u_val = float(np.asarray(u).flatten()[0]) # Safely extract the scalar value
+        u_val = float(u)
+        z, theta, zdot, thetadot = self.x
+        den = (BP.m1 * z**2 + BP.m2 * BP.length**2 /3)
+        A41 = (den*(2 * BP.m1 * zdot - BP.g * BP.m1 * np.cos(theta))\
+               -(u_val - 2 * BP.m1 * z * zdot * thetadot - (BP.g * BP.m1 * z - BP.g * BP.m2 * BP.length / 2 )* np.cos(theta))*(2 * BP.m1 * z))\
+               / (den**2)
+        A42 = (BP.g * BP.m1 * z * np.sin(theta) + BP.g * BP.m2 * BP.length/2*np.sin(theta)) / den
+        A43 = (-2 * BP.m1 * z * thetadot) / den
+        A44 = (-2 * BP.m1 * z * zdot) / den
+        return np.array([[0.0, 0.0, 1.0, 0.0],
+                         [0.0, 0.0, 0.0, 1.0],
+                         [thetadot**2, -BP.g * np.cos(theta), 0.0, 2 * z * thetadot],
+                         [A41, A42, A43, A44]])
+    
+    def predict(self,u):
+        F = np.eye(4) + self.jacobian(u) * BP.dt
+
+        z, theta, zdot, thetadot = self.x
+        zdd = z * thetadot**2 - BP.g * np.sin(theta)
+        thetadd = (float(u) - 2 * BP.m1 * z * zdot * thetadot - BP.g * BP.m1 * z * np.cos(theta) - BP.g*BP.m2*BP.length/2*np.cos(theta))/ (BP.m1 * z**2 + BP.m2 * BP.length**2 /3)
+        xdot = np.array([zdot, thetadot, zdd, thetadd])
+        self.x = self.x + xdot*BP.dt
+        # self.x = F @ self.x + (self.B * float(u) * BP.dt).flatten()
+        
+        self.P_k = F @ self.P_k @ F.T + self.Q_k
+
+    def correct(self, state):
+        self.x = self.x + self.K_k @ (state - self.H @ self.x)
+
+        self.K_k = self.P_k @ self.H.T @ np.linalg.inv(self.H @ self.P_k @ self.H.T + self.R_k)
+
+        self.P_k = (np.eye(4) - self.K_k @ self.H) @ self.P_k @ (np.eye(4) - self.K_k @ self.H).T
+
+    def update(self,state,ref):
+        self.refArray[0] = ref
+        self.correct(state)
+        error = self.x - self.refArray
+        u_gravity = (BP.m1 * self.x[0] + BP.m2 * BP.length /2) * BP.g * np.cos(self.x[1])
+        u = u_gravity - np.dot(self.K_LQR,error)
+        self.predict(u)
+        return u
+
+class LQRI:
     def __init__(self):
         '''
         Docstring for update
