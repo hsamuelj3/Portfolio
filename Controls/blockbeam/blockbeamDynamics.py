@@ -8,7 +8,7 @@ class blockbeamDynamics:
         '''
         Initialize the blockbeam dynamic system. 
         
-        :param alpha: Description
+        :param alpha: Noise
         '''
         if state0 is None:    
             self.state = np.array([
@@ -19,14 +19,18 @@ class blockbeamDynamics:
             ])
         else:
             self.state = state0
+
         # From parameter file
+        # subject to measurement error (alpha) 
+        # If alpha is not 0.0 then it will show why it's important to have an integrator term
+        self.m1 = BP.m1 * (1 + np.random.standard_normal()* alpha)
+        self.m2 = BP.m2 * (1 + np.random.standard_normal()* alpha)
+        self.ell = BP.length * (1 + np.random.standard_normal()* alpha)
         
-        self.m1 = BP.m1
-        self.m2 = BP.m2
-        self.ell = BP.length
-        self.g = BP.g
-        self.dt = BP.dt
-        self.torque_limit = BP.tau_max
+        # World/simulation parameters
+        self.g = BP.g 
+        self.dt = BP.dt 
+        self.torque_limit = BP.tau_max 
 
 
     def update(self,u):

@@ -29,4 +29,4 @@ dt =        0.01            # sample time for simulation
 t_plot =    dt*10           # the plotting and animation is updated at this rate
 
 # saturation limits
-tau_max = 30                # Max Torque, N*m
+tau_max = 50                # Max Torque, N*m

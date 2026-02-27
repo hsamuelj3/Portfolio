@@ -121,212 +121,18 @@ class PID:
 
         return np.clip(tau,-self.Tau_max,self.Tau_max)
 
-class SMC:
-    def __init__(self, A, B, C= None, K0 = None):
-        '''
-        
-        :param A: System dynamics matrix A 
-        :param B: Input effects
-        :param C: Base gains for the sliding surface (optional input)
-        :param K0: Switching gain (optional input)
-        '''
-        self.A = A
-        self.B = B
-
-        self.C = C if C is not None else np.identity(len(A[0])) 
-
-        self.K0 = K0 if K0 is not None else  np.identity(len(A[0]))
-        self.refArray = np.zeros(len(A[0]))
-
-    def update(self, state, ref):
-        '''
-        Docstring for update
-        
-        :param state: Description
-        :param ref: Only the reference for one of the states: x
-        '''
-
-        self.refArray[0] = ref
-        error_array = state - self.refArray
-        s = self.C @ error_array
-
-        
-        pass
-
-## Very quick modification of another project's sliding mode control. Didn't work
-class slidingModeControl: 
-    def __init__(self, alpha = 0.3):
-        '''
-        Docstring for __init__
-        m*xdd = fx(x,xd,y,yd) + ux + dx
-        m*ydd = fy(x,xd,y,yd) + uy + dy
-        f_ = dynamics *See update function
-
-        :param alpha: random uncertainty to parameters
-
-        A disturbance is also included in the update term. 
-        '''
-        
-        self.name = "slidingModeControl"
-        
-        # Uncertainty: 
-        self.alpha_uncertainty = (1 + np.random.standard_normal() * alpha) # Measurement error parameter
-        print(f"Alpha values: {self.alpha_uncertainty, alpha}")
-
-        # Sliding surface for x,y
-        self.lamda_z = 3.0
-        self.lamda_theta = 3.0
-
-        # Gains for x,y directions
-        self.K_z = 30.0
-        self.K_theta = 30.0
-
-        # Boundary layer for the sliding surface
-        self.phi = 0.1
-
-        # Filter params + storage values
-        self.alpha_filter = 0.7
-        self.beta_filter = 0.3
-        self.first_run = True
-
-        self.zdot_filtered = 0.0
-        self.thetadot_filtered = 0.0
-
-        self.zdot_level = 0.0
-        self.thetadot_level = 0.0
-        self.zdot_trend = 0.0
-        self.thetadot_trend = 0.0
-
-        self.m1 = BP.m1 * self.alpha_uncertainty
-        self.m2 = BP.m2 * self.alpha_uncertainty
-        self.length = BP.length * self.alpha_uncertainty
-        self.g = BP.g
-
-
-        # # parameters for fx and fy
-        # # self.m = (BP.a_val + BP.b_val) * self.alpha_uncertainty
-        # self.m_x = BP.a_val * self.alpha_uncertainty
-        # self.m_y = BP.b_val * self.alpha_uncertainty
-        # self.minv = BP.abinv * self.alpha_uncertainty 
-        # self.bx = BP.bx * self.alpha_uncertainty # damping
-        # self.by = BP.by * self.alpha_uncertainty  # damping
-        # self.cx = BP.cx * self.alpha_uncertainty  # spring
-        # self.cy = BP.cy * self.alpha_uncertainty  # spring
-
-    def get_double_ema_velocity(self, zdot_raw, thetadot_raw):
-        '''
-        Applies Holt's Linear Trend method (Double Smoothing)
-        Returns: (filtered_vx, filtered_vy)
-        '''
-        if self.first_run:
-            # Initialize Level to current value, Trend to 0
-            self.zdot_level = zdot_raw
-            self.thetadot_level = thetadot_raw
-            self.zdot_trend = 0.0
-            self.thetadot_trend = 0.0
-            self.first_run = False
-            return zdot_raw, thetadot_raw
-
-        # --- X Direction ---
-        # 1. Update Level (Standard EMA logic + adding the previous trend)
-        prev_level_x = self.zdot_level
-        self.zdot_level = (self.alpha_filter * zdot_raw) + (1 - self.alpha_filter) * (self.zdot_level + self.zdot_trend)
-
-        # 2. Update Trend (Change in level)
-        self.zdot_trend = (self.beta_filter * (self.zdot_level - prev_level_x)) + (1 - self.beta_filter) * self.zdot_trend
-
-        # --- Y Direction ---
-        prev_level_y = self.thetadot_level
-        self.thetadot_level = (self.alpha_filter * thetadot_raw) + (1 - self.alpha_filter) * (self.thetadot_level + self.thetadot_trend)
-
-        self.thetadot_trend = (self.beta_filter * (self.thetadot_level - prev_level_y)) + (1 - self.beta_filter) * self.thetadot_trend
-
-        # The result is Level + Trend (Lag Corrected)
-        return (self.zdot_level + self.zdot_trend), (self.thetadot_level + self.thetadot_trend)
-
-    def update (self, ref, state_measured):
-        '''
-        Docstring for update
-        ux = m*(-fx + xdd_desired - lamda_x * exdot - Kx * sat(sx/phi))
-        uy = m*(-fy + ydd_desired - lamda_y * eydot - Ky * sat(sy/phi))
-
-        TODO: Change xdd and xdot so they are derived numerically
-        Maybe numerical derivation
-        
-        :param self: Description
-        :param ref: Description
-        :param refdot: Derivative of reference!!! [xdot, ydot]
-        :param refddot: derivative 2 of reference!!! [xddot, yddot]
-        :param x: Description 
-        '''
-        '''
-        z    = x[0]
-        theta    = x[1]
-        zdot = x[2]
-        thetadot = x[3]
-        '''
-        # print(f"state: {x}")
-        state = state_measured * (1 + np.random.standard_normal()* 0.005) # Adds a small disturbance value to each measurement
-
-        self.zdot_filtered, self.thetadot_filtered = self.get_double_ema_velocity(state[2],state[3])
-
-        e_z = state[0] - ref[0]
-        e_theta = state[1] - ref[1]
-
-        # Original unfiltered
-        # e_xdot = x[2] - refdot[0]
-        # e_ydot = x[3] - refdot[1]
-
-        e_zdot = self.zdot_filtered
-        e_thetadot = self.thetadot_filtered
-
-        s_z = e_zdot + self.lamda_z * e_z
-        s_theta = e_thetadot + self.lamda_theta * e_theta
-
-        # # Original
-        # fx = self.bx * x[2] - self.cx * x[1] # Known model functions x
-        # fy = self.by * x[3] - self.cy * x[0] # Known model functions y
-
-        # f_z = self.bx * self.zdot_filtered - self.cx * state[1] # Known model functions x
-        f_theta =  -2 * self.m1 * state[0] * self.zdot_filtered * self.thetadot_filtered - self.m2 * self.g * self.length / 2 - self.m1 * self.g * state[0] * np.cos(state[1])# Known model functions theta... (tau = )
-        # f_theta = 0
-        # # Original 
-        # ux = -fx + self.m_x*(refddot[0] - self.lamda_x * e_xdot - self.K_x * sat(s_x,self.phi))
-        # uy = -fy + self.m_y*(refddot[1] - self.lamda_y * e_ydot - self.K_y * sat(s_y,self.phi)) 
-
-        # ux = -fx + self.m_x*(refddot[0] - self.lamda_x * e_xdot - (self.K_x + 1.5*abs(x[2])) * np.tanh(s_x/self.phi))
-        # uy = -fy + self.m_y*(refddot[1] - self.lamda_y * e_ydot - (self.K_y + 1.5*abs(x[3])) * np.tanh(s_y/self.phi))
-
-        u_z = 0 #-f_z + self.m_x*(refddot[0] - self.lamda_z * e_zdot - (self.K_z + 5*abs(self.zdot_filtered)) * sat(s_z,self.phi))
-        
-        # u_theta = -f_theta - self.m_y*(self.lamda_theta * e_thetadot + (self.K_theta + 1.5 * abs(self.thetadot_filtered)) * sat(s_theta,self.phi))
-        u_theta = -f_theta - 1*(self.lamda_theta * e_thetadot + (self.K_theta + 1.5 * abs(self.thetadot_filtered)) * sat(s_theta,self.phi))
-
-        # if abs(u_z) > BP.uLimit or abs(u_theta) > BP.uLimit:
-        #     print(f"Warning: Saturation! Req: {u_z:.1f}, {u_theta:.1f}")
-
-        return np.clip(u_theta,-BP.tau_max,BP.tau_max)
-
-def sat(s,phi):
-    '''
-    Saturation function used in SMC
-    
-    :param s: sliding area value s
-    :param phi: boundary layer thickness
-
-    Saturates input based on where you are related to the sliding surface
-    '''
-    return np.clip(s/phi, -1.0, 1.0)
-
 class LQR:
     def __init__(self, x0=np.zeros(4)):
-        A41 = BP.g * (BP.m1**2 *BP.p_steady**2 + BP.m1 * BP.m2 * BP.length**2 / 3) \
-            / (BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)**2
-        # linearized model used for state prediction xdot = Ax+Bu
+        '''
+        Initalize the state and estimator values for the kalman filter. 
+        No alpha values for the controller calculations. 
+        All the possible system measurement error is in the dynamics file
+        '''
+        # linearized model used for state prediction xdot = Ax+Bu, y = Cx
         self.A = np.array([[0.0, 0.0, 1.0, 0.0],
                     [0.0, 0.0, 0.0, 1.0],
                     [0.0, -BP.g, 0.0, 0.0],
-                    [-A41*0, 0.0, 0.0, 0.0]])
+                    [0, 0.0, 0.0, 0.0]])
 
         self.B = np.array([[0],[0],[0],[1/(BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)]])
 
@@ -334,8 +140,8 @@ class LQR:
                     [0,1,0,0]])
         
         # Used for LQR calculation
-        Q = np.diag([1.0,0.1,0.1,0.1]) # State cost matrix
-        R = np.array([[1]]) # Control cost matrix
+        Q = np.diag([100.0,1.0,10.0,1.0]) # State cost matrix
+        R = np.array([[0.1]]) # Control cost matrix
         P = solve_continuous_are(self.A,self.B,Q,R)
         self.K_LQR = (np.linalg.inv(R) @ self.B.T @ P).flatten()
 
@@ -344,21 +150,12 @@ class LQR:
         # Use for kalman filter: 
         self.x = x0 # prediction state (initialized at x0)
         self.P_k = np.eye(len(self.x))*0.1 # Covariance matrix
-        self.Q_k = np.diag([0.1, 0.01,0.1,0.01])*0.01 # Process noise matrix
+        self.Q_k = np.diag([0.1, 0.01,0.1,0.01]) # Process noise matrix
         self.R_k = np.diag([0.05, 0.02]) # Measurement covariance
         self.H = C # measurement matrix
         self.K_k = self.P_k @ self.H.T @ (self.H @ self.P_k @ self.H.T + self.R_k) # Initialize kalman gain
         
-        self.predict(u=np.array([0]))
-        # print(f"After prediction: ")
-        # print(f"shape x: {np.shape(self.x)}")
-        # print(f"shape P_k: {np.shape(self.P_k)}")
-        # print(f"shape Q_k: {np.shape(self.Q_k)}")
-        # print(f"shape R_k: {np.shape(self.R_k)}")
-        # print(f"shape H: {np.shape(self.H)}")
-        # print(f"shape K: {np.shape(self.K_k)}")
-        # print()
-
+        self.predict(u=np.array([0])) # Initialize Kalman filter
 
     def jacobian(self, u):
         # u_val = float(np.asarray(u).flatten()[0]) # Safely extract the scalar value
@@ -377,11 +174,17 @@ class LQR:
                          [A41, A42, A43, A44]])
     
     def predict(self,u):
+        '''
+        Update the prediction using the current state and 
+        knowledge about the system. 
+        '''
         F = np.eye(4) + self.jacobian(u) * BP.dt
 
         z, theta, zdot, thetadot = self.x
         zdd = z * thetadot**2 - BP.g * np.sin(theta)
-        thetadd = (float(u) - 2 * BP.m1 * z * zdot * thetadot - BP.g * BP.m1 * z * np.cos(theta) - BP.g*BP.m2*BP.length/2*np.cos(theta))/ (BP.m1 * z**2 + BP.m2 * BP.length**2 /3)
+        thetadd = (float(u) - 2 * BP.m1 * z * zdot * thetadot - (BP.m1 * z  + BP.m2*BP.length/2) * BP.g * np.cos(theta))\
+                / (BP.m1 * z**2 + BP.m2 * BP.length**2 /3)
+        
         xdot = np.array([zdot, thetadot, zdd, thetadd])
         self.x = self.x + xdot*BP.dt
         # self.x = F @ self.x + (self.B * float(u) * BP.dt).flatten()
@@ -397,26 +200,24 @@ class LQR:
 
     def update(self,state,ref):
         self.refArray[0] = ref
-        self.correct(state)
+        self.correct(state*(1 + np.random.standard_normal()* 0.1)) # Add in minimal sensor noise to LQR system
         error = self.x - self.refArray
         u_gravity = (BP.m1 * self.x[0] + BP.m2 * BP.length /2) * BP.g * np.cos(self.x[1])
         u = u_gravity - np.dot(self.K_LQR,error)
         self.predict(u)
         return u
 
+# Attempt at including an integrator... 
 class LQRI:
     def __init__(self):
         '''
         Docstring for update
         '''
         # linearized equation + parameters:
-
-        A41 = BP.g * (BP.m1**2 *BP.p_steady**2 + BP.m1 * BP.m2 * BP.length**2 / 3) \
-            / (BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)**2
         self.A = np.array([[0.0, 0.0, 1.0, 0.0],
                     [0.0, 0.0, 0.0, 1.0],
                     [0.0, -BP.g, 0.0, 0.0],
-                    [-A41, 0.0, 0.0, 0.0]])
+                    [0.0, 0.0, 0.0, 0.0]])
 
         self.B = np.array([[0],[0],[0],[1/(BP.m1 * BP.p_steady**2 + BP.m2 * BP.length**2 / 3)]])
 
@@ -466,9 +267,10 @@ class LQRI:
         x_pred = self.x_hat + (self.A @ self.x_hat + self.B * self.u_prev) * self.dt
         
         # Correction step
+        stateNoise = state * (1 + np.random.standard_normal()* 0.01)
         y_pred = self.C @ x_pred
-        residual = state[:2].reshape(-1,1) - y_pred
-        self.x_hat = x_pred + self.L @ residual
+        residual = stateNoise[:2].reshape(-1,1) - y_pred
+        self.x_hat = x_pred + self.L @ residual * self.dt
 
         # LQI control
         z_est = self.x_hat[0,0]
@@ -481,28 +283,12 @@ class LQRI:
             # e.g. to give 4 equal partitions for more accurate numerical integration... 
             # self.integrator_state = self.integrator_state - self.K_aug[-1] * self.integrator_state #- self.Kd_z * self.z_dot
             # print(f"Used")
-
+        
         # Augmented state: 
         x_aug_current = np.vstack([self.x_hat,[self.integrator_state]])
 
         # control output: 
+        u_gravity = (BP.m1 * self.x_hat[0] + BP.m2 * BP.length /2) * BP.g * np.cos(self.x_hat[1])
         u = -np.dot(self.K_aug,x_aug_current).item()
         self.u_prev = np.clip(u,-self.tau_max,self.tau_max)
-        return self.u_prev
-
-class MPC:
-    def __init__(self):
-        '''
-        Docstring for __init__
-        
-        '''
-        pass
-
-    def update(self, state, ref):
-        '''
-        Docstring for update
-        
-        :param state: Description
-        :param ref: Description
-        '''
-        pass
+        return np.clip(u + u_gravity,-self.tau_max,self.tau_max).item()
