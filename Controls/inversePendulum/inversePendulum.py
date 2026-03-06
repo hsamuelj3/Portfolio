@@ -14,12 +14,11 @@ import inverseDynamics as ipDynamics
 
 # plant and controller creation
 state0 = np.array([iP.z0, iP.theta0, iP.zdot0, iP.thetadot0]) # start in an equilibrium position
-state0 = np.array([0.0, 0.0, 1.0, 0.0]) # create your own
+state0 = np.array([0.0, 1.0, 0.0, 0.0]) # create your own
 plant = ipDynamics.inverseDynamics(state0=state0,alpha=0.0,doubleFriction=True)
 
-
 # Storage containers
-tVals = np.arange(iP.t_start, iP.t_end, iP.dt)
+tVals = np.arange(iP.t_start, iP.t_end*2, iP.dt)
 forceVals = np.zeros_like(tVals)
 stateVals = np.zeros((len(state0),len(tVals)))
 y = plant.h()
@@ -27,12 +26,13 @@ stateVals[:,0] = plant.state
 
 if True:
     for i in range(len(tVals)-1):
-        u = 3.0 * np.sin(tVals[i])
+        u = 0.1 * np.sin(tVals[i])
         forceVals[i] = u
         y = plant.update(u)
         stateVals[:,i+1] = plant.state
 
     forceVals[-1] = u
+
 if True: # to make this a collapsing section and optional plotting
     fig = plt.figure(figsize=(12,12))
     # Plot position and 

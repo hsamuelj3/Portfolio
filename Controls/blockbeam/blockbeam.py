@@ -19,7 +19,7 @@ import blockbeamControllers as bbControllers
 
 state0 = np.array([BP.z0, BP.theta0, BP.zdot0, BP.thetadot0])
 
-plant = bbDynamics.blockbeamDynamics(state0,alpha=0.01)
+plant = bbDynamics.blockbeamDynamics(state0,alpha=0.005)
 controller = bbControllers.PID()
 controller2 = bbControllers.LQR()
 controller3 = bbControllers.LQRI()

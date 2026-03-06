@@ -2,7 +2,7 @@
 
 This repository will grow to contain various projects demonstrating skills in robotics, simulations, optimization techniques, and more.
 
-I use a python virtual environment and Docker containers.
+I use a python virtual environment with the necessary libraries and will likely use Docker containers for the robotics or perception projects.
 
 ## Current Sections
 
@@ -12,17 +12,17 @@ This folder contains demonstrations of control theory. Currently they are implem
 
 The control theories used will be basic PID/PD, state feedback with an observer and/or disturbance observer, model predictive control (MPC), and sliding mode control (SMC), all with various modifications and flairs to demonstrate different capabilities.
 
+### Optimization Techniques
+
+Various techniques including quadratic programming will be used to solve unique problems including a passion project of theoretical railroad stop planning in the United States of America and expanding to other locations as well using open source data.
+
 ## Future sections
 
 The following sections describe topics I have worked on in the past and have not yet uploaded, as well as topics I would like to work on for this portfolio.
 
 ### Simulations
 
-Simulating physical phenomena or anything I find interesting, e.g. Nonlinear disease spread representation, the double pendulum, etc..
-
-### Optimization Techniques
-
-Various techniques including quadratic programming will be used to solve unique problems including a passion project of theoretical railroad stop planning in the United States of America.
+Simulating physical phenomena or anything I find interesting and have learned about in the past (e.g. Nonlinear disease spread representation, the double pendulum, etc.).
 
 ### ROS2 Projects
 

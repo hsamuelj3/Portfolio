@@ -141,7 +141,7 @@ class LQR:
         
         # Used for LQR calculation
         Q = np.diag([100.0,1.0,10.0,1.0]) # State cost matrix
-        R = np.array([[0.1]]) # Control cost matrix
+        R = np.array([[0.5]]) # Control cost matrix
         P = solve_continuous_are(self.A,self.B,Q,R)
         self.K_LQR = (np.linalg.inv(R) @ self.B.T @ P).flatten()
 
@@ -232,7 +232,7 @@ class LQRI:
         self.B_aug = np.vstack([self.B,[0]])
 
         Q_aug = np.diag([100.0, 1.0, 1.0, 1.0, 10.0]) # High penalty on Integral = Stiff tracking
-        R = np.array([[0.1]]) # Penalty on control effort
+        R = np.array([[5.1]]) # Penalty on control effort
 
         self.P = solve_continuous_are(self.A_aug,self.B_aug,Q_aug,R)
         self.K_aug = (np.linalg.inv(R) @ self.B_aug.T @ self.P).flatten()
